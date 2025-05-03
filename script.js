@@ -1,53 +1,37 @@
-const app_id = 72379;
-const redirect_uri = encodeURIComponent("https://manna69.github.io/babymoney/");
+let ws;
+let token = new URLSearchParams(window.location.search).get("token");
 
-document.getElementById("login-btn").addEventListener("click", () => {
-  window.location.href = `https://oauth.deriv.com/oauth2/authorize?app_id=${app_id}&redirect_uri=${redirect_uri}`;
-});
+if (token) {
+  connectToDeriv(token);
+}
 
-const accountInfo = document.getElementById("account-info");
-const tradePanel = document.getElementById("trade-panel");
-const adminPanel = document.getElementById("admin-panel");
+function connectToDeriv(token) {
+  ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=72379");
 
-// Simulated token check (Replace with real token logic)
-function checkLogin() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get("token");
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ authorize: token }));
+  };
 
-  if (token) {
-    accountInfo.innerText = "Logged in with token: " + token.slice(0, 6) + "...";
-    tradePanel.style.display = "block";
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
 
-    // Optionally enable admin panel based on some condition
-    if (token.startsWith("a")) {
-      adminPanel.style.display = "block";
+    if (data.msg_type === "authorize") {
+      document.getElementById("account-info").textContent = `Welcome, ${data.authorize.loginid}`;
+      document.getElementById("trade-panel").style.display = "block";
+      if (data.authorize.is_virtual) {
+        document.getElementById("admin-panel").style.display = "block";
+      }
+    } else if (data.msg_type === "buy") {
+      log(`Trade confirmed: ${data.buy.transaction_id}`);
+    } else if (data.error) {
+      log(`Error: ${data.error.message}`);
     }
-  }
+  };
 }
 
-// Placeholder functions
-function placeTrade() {
-  const symbol = document.getElementById("symbol").value;
-  const contract = document.getElementById("contract").value;
-  const duration = document.getElementById("duration").value;
-  const stake = document.getElementById("stake").value;
-
-  const log = document.getElementById("log");
-  log.innerText = `Placing trade: ${symbol}, ${contract}, ${duration}min, $${stake}`;
+function log(message) {
+  const logDiv = document.getElementById("log");
+  const entry = document.createElement("div");
+  entry.textContent = message;
+  logDiv.appendChild(entry);
 }
-
-function saveTokens() {
-  alert("Tokens saved!");
-}
-
-function clearTokens() {
-  document.getElementById("client-tokens").value = "";
-  alert("Tokens cleared.");
-}
-
-function copyTrade() {
-  alert("Copy trade sent to clients.");
-}
-
-// Run check on page load
-checkLogin();

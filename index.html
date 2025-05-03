@@ -1,12 +1,12 @@
-<!DOCTYPE html>
+<html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MANNA Trading App (ID: 72379)</title>
-  <!-- Ensure all relative paths resolve from this base -->
-  <base href="https://manna69.github.io/babymoney/">
-  <link rel="stylesheet" href="styles.css">
+  <!-- Set base to actual deployment folder -->
+  <base href="https://manna69.github.io/dady/">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header><h1>MANNA Trading App (ID: 72379)</h1></header>
@@ -42,10 +42,10 @@
     </select>
 
     <label for="duration">Duration (minutes)</label>
-    <input type="number" id="duration" value="1"/>
+    <input type="number" id="duration" value="1" />
 
     <label for="stake">Stake Amount ($)</label>
-    <input type="number" id="stake" value="1"/>
+    <input type="number" id="stake" value="1" />
 
     <button onclick="placeTrade()">Trade</button>
     <div id="log"></div>
@@ -60,6 +60,15 @@
     </div>
   </div>
 
+  <script>
+    const loginBtn = document.getElementById("login-btn");
+    loginBtn.onclick = () => {
+      const app_id = 72379;
+      const redirect_uri = encodeURIComponent("https://manna69.github.io/dady/");
+      const loginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${app_id}&redirect_uri=${redirect_uri}`;
+      window.location.href = loginUrl;
+    };
+  </script>
   <script src="script.js"></script>
 </body>
 </html>
