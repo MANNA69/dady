@@ -1,11 +1,16 @@
+// Declare once at the top
 let ws;
-let token = new URLSearchParams(window.location.search).get("token");
+const token = new URLSearchParams(window.location.search).get("token");
 
 if (token) {
   connectToDeriv(token);
 }
 
 function connectToDeriv(token) {
+  if (ws && ws.readyState !== WebSocket.CLOSED) {
+    ws.close();
+  }
+
   ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=72379");
 
   ws.onopen = () => {
@@ -26,6 +31,10 @@ function connectToDeriv(token) {
     } else if (data.error) {
       log(`Error: ${data.error.message}`);
     }
+  };
+
+  ws.onerror = (err) => {
+    log(`WebSocket Error: ${err.message}`);
   };
 }
 
