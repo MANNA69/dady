@@ -2,48 +2,226 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MANNA Trading App</title>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    header {
+      background: #000;
+      width: 100%;
+      text-align: center;
+      padding: 1rem 0;
+    }
+    header img {
+      height: 50px;
+      vertical-align: middle;
+    }
+    .manna-logo {
+      font-size: 2rem;
+      color: #b78007;
+      font-weight: bold;
+    }
+    main {
+      width: 95%;
+      max-width: 600px;
+      padding: 1rem;
+    }
+    .field {
+      margin: 1rem 0;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.5rem;
+      font-size: 1rem;
+    }
+    button {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      font-size: 1rem;
+      background: #b78007;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      width: 100%;
+    }
+    #log {
+      background: #222;
+      border: 1px solid #444;
+      height: 200px;
+      overflow-y: auto;
+      margin-top: 1rem;
+      padding: 1rem;
+      font-size: 0.9rem;
+    }
+    @media (max-width: 600px) {
+      .manna-logo {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
 </head>
 <body>
   <header>
-    <img src="https://static.deriv.com/logos/deriv-gray.svg" class="deriv-logo" alt="Deriv Logo">
-    <h1 id="manna-logo">MANNA</h1>
+    <img src="https://deriv.com/static/logos/deriv-white.svg" alt="Deriv Logo">
+    <div class="manna-logo">MANNA</div>
   </header>
-
   <main>
-    <a href="https://oauth.deriv.com/oauth2/authorize?app_id=72379&affiliate_token=_jCUPKTCOsvmFfUyb_9NCN2Nd7ZgqdRLk" id="login-btn">Login with Deriv</a>
-    <div id="account-info"></div>
-
+    <div id="account-info">Connecting...</div>
     <div id="trade-panel" style="display:none;">
-      <h2>Trade Setup</h2>
-      <label for="symbol">Select Symbol</label>
-      <select id="symbol">
-        <option value="R_10">Volatility 10</option>
-        <option value="R_25">Volatility 25</option>
-        <option value="R_50">Volatility 50</option>
-        <option value="R_75">Volatility 75</option>
-        <option value="R_100">Volatility 100</option>
-      </select>
-
-      <label for="contract">Contract Type</label>
-      <select id="contract">
-        <option value="CALL">Rise</option>
-        <option value="PUT">Fall</option>
-      </select>
-
-      <label for="duration">Duration (minutes)</label>
-      <input type="number" id="duration" value="1"/>
-
-      <label for="stake">Stake Amount ($)</label>
-      <input type="number" id="stake" value="1"/>
-
-      <button onclick="placeTrade()">Trade</button>
-      <div id="log"></div>
+      <div class="field">
+        <label for="symbol">Symbol</label>
+        <select id="symbol">
+          <option value="R_100">R_100</option>
+          <option value="R_50">R_50</option>
+          <option value="R_25">R_25</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="contract">Contract</label>
+        <select id="contract">
+          <option value="CALL">Rise</option>
+          <option value="PUT">Fall</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="duration">Duration (minutes)</label>
+        <input type="number" id="duration" value="1" />
+      </div>
+      <div class="field">
+        <label for="stake">Stake (USD)</label>
+        <input type="number" id="stake" value="1" />
+      </div>
+      <button onclick="placeTrade()">Place Trade</button>
     </div>
+    <div id="log"></div>
   </main>
 
-  <script src="script.js"></script>
+  <script>
+    const tokens = [];
+    const urlParams = new URLSearchParams(window.location.search);
+
+    for (let i = 1; i <= 10; i++) {
+      const token = urlParams.get(`token${i}`);
+      if (token) tokens.push(token);
+    }
+
+    const connections = [];
+
+    function init() {
+      if (tokens.length === 0) {
+        log("No tokens provided in the URL. Please append ?token1=...&token2=... to the URL.");
+        return;
+      }
+
+      tokens.forEach((token, index) => {
+        const ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=72379");
+        connections.push({ token, ws });
+
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ authorize: token }));
+        };
+
+        ws.onmessage = (msg) => {
+          const data = JSON.parse(msg.data);
+
+          if (data.msg_type === "authorize") {
+            log(`✅ Account ${index + 1} (${data.authorize.loginid}) authorized.`);
+            if (index === 0) {
+              document.getElementById("account-info").textContent = `Main Account: ${data.authorize.loginid}`;
+              document.getElementById("trade-panel").style.display = "block";
+            }
+          } else if (data.msg_type === "buy") {
+            log(`💰 Trade confirmed for ${data.buy.transaction_id}`);
+          } else if (data.error) {
+            log(`❌ Error: ${data.error.message}`);
+          }
+        };
+
+        ws.onerror = (err) => {
+          log(`WebSocket error for token ${index + 1}: ${err.message}`);
+        };
+      });
+    }
+
+    function placeTrade() {
+      const symbol = document.getElementById("symbol").value;
+      const contractType = document.getElementById("contract").value;
+      const duration = +document.getElementById("duration").value;
+      const stake = +document.getElementById("stake").value;
+
+      const proposal = {
+        buy: 1,
+        price: stake,
+        parameters: {
+          amount: stake,
+          basis: "stake",
+          contract_type: contractType,
+          currency: "USD",
+          duration: duration,
+          duration_unit: "m",
+          symbol: symbol,
+        }
+      };
+
+      connections.forEach(({ token, ws }) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(proposal));
+        } else {
+          log(`⛔ WebSocket not open for one of the accounts.`);
+        }
+      });
+
+      log(`📤 Sent trade proposal to all authorized accounts.`);
+    }
+
+    function log(message) {
+      const logDiv = document.getElementById("log");
+      const entry = document.createElement("div");
+      entry.textContent = message;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function savePreferences() {
+      const symbol = document.getElementById("symbol").value;
+      const contract = document.getElementById("contract").value;
+      const duration = document.getElementById("duration").value;
+      const stake = document.getElementById("stake").value;
+      localStorage.setItem("tradePrefs", JSON.stringify({ symbol, contract, duration, stake }));
+    }
+
+    function loadPreferences() {
+      const prefs = JSON.parse(localStorage.getItem("tradePrefs"));
+      if (prefs) {
+        document.getElementById("symbol").value = prefs.symbol;
+        document.getElementById("contract").value = prefs.contract;
+        document.getElementById("duration").value = prefs.duration;
+        document.getElementById("stake").value = prefs.stake;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadPreferences();
+      init();
+      document.getElementById("symbol").addEventListener("change", savePreferences);
+      document.getElementById("contract").addEventListener("change", savePreferences);
+      document.getElementById("duration").addEventListener("input", savePreferences);
+      document.getElementById("stake").addEventListener("input", savePreferences);
+    });
+  </script>
 </body>
 </html>
