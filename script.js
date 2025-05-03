@@ -1,46 +1,68 @@
-// Declare once at the top
-let ws;
-const token = new URLSearchParams(window.location.search).get("token");
-
-if (token) {
-  connectToDeriv(token);
-}
-
-function connectToDeriv(token) {
-  if (ws && ws.readyState !== WebSocket.CLOSED) {
-    ws.close();
-  }
-
-  ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=72379");
-
-  ws.onopen = () => {
-    ws.send(JSON.stringify({ authorize: token }));
-  };
-
-  ws.onmessage = (msg) => {
-    const data = JSON.parse(msg.data);
-
-    if (data.msg_type === "authorize") {
-      document.getElementById("account-info").textContent = `Welcome, ${data.authorize.loginid}`;
-      document.getElementById("trade-panel").style.display = "block";
-      if (data.authorize.is_virtual) {
-        document.getElementById("admin-panel").style.display = "block";
-      }
-    } else if (data.msg_type === "buy") {
-      log(`Trade confirmed: ${data.buy.transaction_id}`);
-    } else if (data.error) {
-      log(`Error: ${data.error.message}`);
-    }
-  };
-
-  ws.onerror = (err) => {
-    log(`WebSocket Error: ${err.message}`);
-  };
+function showTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(section => section.classList.remove('active'));
+  document.querySelectorAll('.tab-button').forEach(button => button.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  event.target.classList.add('active');
 }
 
 function log(message) {
-  const logDiv = document.getElementById("log");
-  const entry = document.createElement("div");
-  entry.textContent = message;
-  logDiv.appendChild(entry);
+  const output = document.getElementById("log-output");
+  output.innerHTML += `<p>${new Date().toLocaleTimeString()} - ${message}</p>`;
+  output.scrollTop = output.scrollHeight;
+}
+
+function startCopying() {
+  const masterToken = document.getElementById('master-token').value.trim();
+  const followerTokens = document.getElementById('follower-token').value.trim().split(',').map(t => t.trim());
+  if (!masterToken || followerTokens.length === 0 || !followerTokens[0]) {
+    alert("Please provide both master and follower token(s).");
+    return;
+  }
+
+  const masterSocket = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=72379");
+  const followerSockets = followerTokens.map(token => new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=72379"));
+
+  masterSocket.onopen = () => {
+    masterSocket.send(JSON.stringify({ authorize: masterToken }));
+  };
+
+  masterSocket.onmessage = event => {
+    const data = JSON.parse(event.data);
+    if (data.msg_type === "authorize") {
+      log("Master account authorized.");
+      masterSocket.send(JSON.stringify({ subscribe: 1, proposal_open_contract: 1 }));
+    } else if (data.msg_type === "proposal_open_contract") {
+      const contract = data.proposal_open_contract;
+      if (contract.is_sold) {
+        const trade = {
+          buy: 1,
+          price: contract.buy_price,
+          parameters: {
+            amount: contract.buy_price,
+            basis: "stake",
+            contract_type: contract.contract_type,
+            currency: contract.currency,
+            symbol: contract.underlying,
+            duration: contract.duration,
+            duration_unit: contract.duration_unit,
+            barrier: contract.barrier,
+            barrier2: contract.barrier2,
+            date_start: contract.date_start
+          }
+        };
+
+        followerTokens.forEach((token, idx) => {
+          const socket = followerSockets[idx];
+          socket.onopen = () => socket.send(JSON.stringify({ authorize: token }));
+          socket.onmessage = msgEvent => {
+            const res = JSON.parse(msgEvent.data);
+            if (res.msg_type === "authorize") {
+              socket.send(JSON.stringify(trade));
+              log(`Trade sent to follower: ${token.slice(0, 5)}***`);
+            }
+          };
+        });
+      }
+    }
+  };
 }

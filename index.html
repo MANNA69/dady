@@ -3,239 +3,46 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MANNA Trading App</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #fff;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    header {
-      background: #000;
-      width: 100%;
-      text-align: center;
-      padding: 1rem 0;
-    }
-    header img {
-      height: 50px;
-      vertical-align: middle;
-    }
-    .manna-logo {
-      font-size: 2rem;
-      color: #b78007;
-      font-weight: bold;
-    }
-    nav {
-      display: flex;
-      justify-content: center;
-      margin-top: 1rem;
-      flex-wrap: wrap;
-    }
-    nav button {
-      background: #333;
-      color: #fff;
-      border: 1px solid #444;
-      padding: 0.5rem 1rem;
-      cursor: pointer;
-      margin: 0.5rem;
-    }
-    nav button.active {
-      background: #b78007;
-    }
-    main {
-      width: 95%;
-      max-width: 600px;
-      padding: 1rem;
-    }
-    .field {
-      margin: 1rem 0;
-    }
-    label {
-      display: block;
-      margin-bottom: 0.5rem;
-    }
-    input, select {
-      width: 100%;
-      padding: 0.5rem;
-      font-size: 1rem;
-    }
-    button.submit-btn {
-      margin-top: 1rem;
-      padding: 0.75rem;
-      font-size: 1rem;
-      background: #b78007;
-      border: none;
-      color: #fff;
-      cursor: pointer;
-      width: 100%;
-    }
-    #log, #history {
-      background: #222;
-      border: 1px solid #444;
-      height: 200px;
-      overflow-y: auto;
-      margin-top: 1rem;
-      padding: 1rem;
-      font-size: 0.9rem;
-    }
-    .tab-content {
-      display: none;
-    }
-    .tab-content.active {
-      display: block;
-    }
-    @media (max-width: 600px) {
-      .manna-logo {
-        font-size: 1.5rem;
-      }
-    }
-  </style>
+  <title>MANNA COPY TRADER</title>
+  <link rel="icon" href="https://copytrader.tech/favicon.ico" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
     <img src="https://deriv.com/static/logos/deriv-white.svg" alt="Deriv Logo">
-    <div class="manna-logo">MANNA</div>
+    <div class="manna-logo">MANNA COPY TRADER</div>
   </header>
   <nav>
-    <button class="tab-btn active" onclick="showTab('trade')">Trade</button>
-    <button class="tab-btn" onclick="showTab('history')">History</button>
+    <button class="tab-button active" onclick="showTab('copy')">Copy Trader</button>
+    <button class="tab-button" onclick="showTab('log')">Logs</button>
+    <button class="tab-button" onclick="showTab('history')">History</button>
   </nav>
   <main>
-    <div id="account-info">Connecting...</div>
-    <div id="trade" class="tab-content active">
-      <div id="trade-panel" style="display:none;">
+    <section id="copy" class="tab-content active">
+      <div class="card">
         <div class="field">
-          <label for="symbol">Symbol</label>
-          <select id="symbol">
-            <option value="R_100">R_100</option>
-            <option value="R_50">R_50</option>
-            <option value="R_25">R_25</option>
-          </select>
+          <label for="master-token">Master Token</label>
+          <input type="text" id="master-token" placeholder="Enter Master Token">
         </div>
         <div class="field">
-          <label for="contract">Contract</label>
-          <select id="contract">
-            <option value="CALL">Rise</option>
-            <option value="PUT">Fall</option>
-          </select>
+          <label for="follower-token">Follower Token(s)</label>
+          <input type="text" id="follower-token" placeholder="Comma-separated follower tokens">
         </div>
-        <div class="field">
-          <label for="duration">Duration (minutes)</label>
-          <input type="number" id="duration" value="1" />
-        </div>
-        <div class="field">
-          <label for="stake">Stake (USD)</label>
-          <input type="number" id="stake" value="1" />
-        </div>
-        <button class="submit-btn" onclick="placeTrade()">Place Trade</button>
+        <button class="submit-btn" onclick="startCopying()">Start Copying</button>
       </div>
-      <div id="log"></div>
-    </div>
-    <div id="history" class="tab-content">
-      <div id="history">Trade history will appear here.</div>
-    </div>
+    </section>
+    <section id="log" class="tab-content">
+      <div class="card">
+        <div id="log-output"></div>
+      </div>
+    </section>
+    <section id="history" class="tab-content">
+      <div class="card">
+        <div id="history-output"></div>
+      </div>
+    </section>
   </main>
-  <script>
-    const tokens = [];
-    const urlParams = new URLSearchParams(window.location.search);
-
-    for (let i = 1; i <= 10; i++) {
-      const token = urlParams.get(`token${i}`);
-      if (token) tokens.push(token);
-    }
-
-    const connections = [];
-
-    function init() {
-      if (tokens.length === 0) {
-        log("No tokens provided in the URL. Please append ?token1=...&token2=... to the URL.");
-        return;
-      }
-
-      tokens.forEach((token, index) => {
-        const ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=72379");
-        connections.push({ token, ws });
-
-        ws.onopen = () => {
-          ws.send(JSON.stringify({ authorize: token }));
-        };
-
-        ws.onmessage = (msg) => {
-          const data = JSON.parse(msg.data);
-
-          if (data.msg_type === "authorize") {
-            log(`✅ Account ${index + 1} (${data.authorize.loginid}) authorized.`);
-            if (index === 0) {
-              document.getElementById("account-info").textContent = `Main Account: ${data.authorize.loginid}`;
-              document.getElementById("trade-panel").style.display = "block";
-            }
-          } else if (data.msg_type === "proposal") {
-            const proposal_id = data.proposal.id;
-            const price = data.proposal.ask_price;
-            ws.send(JSON.stringify({ buy: proposal_id, price: price }));
-            log(`✅ Sent buy request for proposal ID ${proposal_id} at $${price}`);
-          } else if (data.msg_type === "buy") {
-            log(`💰 Trade confirmed for ${data.buy.transaction_id}`);
-          } else if (data.error) {
-            log(`❌ Error: ${data.error.message}`);
-          }
-        };
-
-        ws.onerror = (err) => {
-          log(`WebSocket error for token ${index + 1}: ${err.message}`);
-        };
-      });
-    }
-
-    function placeTrade() {
-      const symbol = document.getElementById("symbol").value;
-      const contractType = document.getElementById("contract").value;
-      const duration = +document.getElementById("duration").value;
-      const stake = +document.getElementById("stake").value;
-
-      connections.forEach(({ token, ws }, index) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            proposal: 1,
-            subscribe: 1,
-            amount: stake,
-            basis: "stake",
-            contract_type: contractType,
-            currency: "USD",
-            duration: duration,
-            duration_unit: "m",
-            symbol: symbol
-          }));
-          log(`📨 Requested proposal for Account ${index + 1}`);
-        } else {
-          log(`⛔ WebSocket not open for account ${index + 1}`);
-        }
-      });
-    }
-
-    function log(message) {
-      const logDiv = document.getElementById("log");
-      const entry = document.createElement("div");
-      entry.textContent = message;
-      logDiv.appendChild(entry);
-      logDiv.scrollTop = logDiv.scrollHeight;
-    }
-
-    function showTab(tabId) {
-      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-      document.getElementById(tabId).classList.add('active');
-      document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('active'));
-      document.querySelector(`nav button[onclick="showTab('${tabId}')"]`).classList.add('active');
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      init();
-    });
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
